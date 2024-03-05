@@ -12,9 +12,12 @@ def gray_to_hex(gray_value):
     return f'#{hex_value}{hex_value}{hex_value}'
 
 class GridEditor:
-    def __init__(self, master):
+    def __init__(self, master, initial=None):
         self.master = master
-        self.grid = [[INITIAL_GRID_VALUE for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
+        if initial is None:
+            self.grid = [[INITIAL_GRID_VALUE for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
+        else:
+            self.grid = initial
         self.label_grid = [[None for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
         self.click_value = INITIAL_CLICK_VALUE
         self.last_pos = None
@@ -46,8 +49,28 @@ class GridEditor:
 
     def flip_color(self, label):
         i, j = label.pos
-        self.grid[i][j] = self.click_value
-        label.configure(bg=gray_to_hex(self.grid[i][j]))
+        # we want to create a brush effect to make it easier to paint
+        # immediate surrounding pixels are a lighter value
+        inner_ring_color = (self.click_value // 20) * 19
+
+        # Update surrounding pixels
+        for di in [-1, 0, 1]:
+            for dj in [-1, 0, 1]:
+                new_i, new_j = i + di, j + dj
+                # Check bounds
+                if 0 <= new_i < GRID_ROWS and 0 <= new_j < GRID_COLS:
+                    # Determine color based on distance from the center
+                    if di == 0 and dj == 0:
+                        # Center pixel
+                        self.grid[new_i][new_j] = self.click_value
+                    else:
+                        # Surrounding pixels
+                        if self.grid[new_i][new_j] < inner_ring_color:
+                            self.grid[new_i][new_j] = inner_ring_color
+                    
+                    # Update the label color
+                    self.label_grid[new_i][new_j].configure(bg=gray_to_hex(self.grid[new_i][new_j]))
+
 
     def on_press(self, event):
         widget = self.master.winfo_containing(event.x_root, event.y_root)
@@ -103,13 +126,14 @@ class GridEditor:
         self.master.bind('<B1-Motion>', self.on_drag)
         self.master.bind('<Motion>', self.update_info)
 
-def start_grid_editor():
+def draw_number(initial=None):
     root = tk.Tk()
-    app = GridEditor(root)
+    app = GridEditor(root, initial)
     root.mainloop()
+    return app.grid
 
 def main():
-    start_grid_editor()
+    draw_number()
 
 if __name__ == "__main__":
     main()
