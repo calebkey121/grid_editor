@@ -38,9 +38,10 @@ class GridEditor:
         self.create_controls()
 
     def create_controls(self):
-        tk.Button(self.master, text='Set All', command=self.set_click_value).grid(row=GRID_ROWS, column=0, columnspan=GRID_COLS//3)
-        tk.Button(self.master, text='Invert', command=self.invert_grid).grid(row=GRID_ROWS, column=GRID_COLS//3, columnspan=GRID_COLS//3)
-        tk.Button(self.master, text='Random', command=self.randomize_grid).grid(row=GRID_ROWS, column=(2*GRID_COLS)//3, columnspan=GRID_COLS//3)
+        tk.Button(self.master, text='Set All', command=self.set_click_value).grid(row=GRID_ROWS, column=0, columnspan=GRID_COLS//4)
+        tk.Button(self.master, text='Invert', command=self.invert_grid).grid(row=GRID_ROWS, column=GRID_COLS//4, columnspan=GRID_COLS//4)
+        tk.Button(self.master, text='Random', command=self.randomize_grid).grid(row=GRID_ROWS, column=(2*GRID_COLS)//4, columnspan=GRID_COLS//4)
+        tk.Button(self.master, text='Reset', command=self.reset_grid).grid(row=GRID_ROWS, column=(3*GRID_COLS)//4, columnspan=GRID_COLS//4)
         
         self.click_value_entry = tk.Entry(self.master, width=15)
         self.click_value_entry.grid(row=GRID_ROWS+2, column=0, columnspan=GRID_COLS//2)
@@ -51,7 +52,7 @@ class GridEditor:
         i, j = label.pos
         # we want to create a brush effect to make it easier to paint
         # immediate surrounding pixels are a lighter value
-        inner_ring_color = (self.click_value // 20) * 19
+        inner_ring_color = (self.click_value // 5)
 
         # Update surrounding pixels
         for di in [-1, 0, 1]:
@@ -65,8 +66,10 @@ class GridEditor:
                         self.grid[new_i][new_j] = self.click_value
                     else:
                         # Surrounding pixels
-                        if self.grid[new_i][new_j] < inner_ring_color:
-                            self.grid[new_i][new_j] = inner_ring_color
+                        self.grid[new_i][new_j] += inner_ring_color
+                        if self.grid[new_i][new_j] > 255:
+                            self.grid[new_i][new_j] = 255
+
                     
                     # Update the label color
                     self.label_grid[new_i][new_j].configure(bg=gray_to_hex(self.grid[new_i][new_j]))
@@ -94,6 +97,13 @@ class GridEditor:
             for j in range(GRID_COLS):
                 self.grid[i][j] = self.click_value
                 self.label_grid[i][j].configure(bg=gray_to_hex(self.grid[i][j]))
+
+    def reset_grid(self):
+        for i in range(GRID_ROWS):
+            for j in range(GRID_COLS):
+                self.grid[i][j] = INITIAL_GRID_VALUE
+                self.label_grid[i][j].configure(bg=gray_to_hex(INITIAL_GRID_VALUE))
+
 
     def invert_grid(self):
         for i in range(GRID_ROWS):
