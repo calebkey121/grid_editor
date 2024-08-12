@@ -12,8 +12,8 @@ def gray_to_hex(gray_value):
     return f'#{hex_value}{hex_value}{hex_value}'
 
 class GridEditor:
-    def __init__(self, master, initial=None):
-        self.master = master
+    def __init__(self, initial=None, prediction_callback=None, models=None):
+        self.master = tk.Tk()
         if initial is None:
             self.grid = [[INITIAL_GRID_VALUE for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
         else:
@@ -21,8 +21,21 @@ class GridEditor:
         self.label_grid = [[None for _ in range(GRID_COLS)] for _ in range(GRID_ROWS)]
         self.click_value = INITIAL_CLICK_VALUE
         self.last_pos = None
+        self.prediction_callback = prediction_callback
+        self.models = models # dict of model_name: model
         self.create_widgets()
+        self.create_controls()
         self.bind_events()
+        self.master.mainloop()
+
+    ### INITIAL SETUP ###
+    def create_controls(self):
+        tk.Button(self.master, text='Set All', command=self.set_click_value).grid(row=GRID_ROWS, column=0, columnspan=GRID_COLS//4)
+        tk.Button(self.master, text='Invert', command=self.invert_grid).grid(row=GRID_ROWS, column=GRID_COLS//4, columnspan=GRID_COLS//4)
+        tk.Button(self.master, text='Random', command=self.randomize_grid).grid(row=GRID_ROWS, column=(2*GRID_COLS)//4, columnspan=GRID_COLS//4)
+        tk.Button(self.master, text='Reset', command=self.reset_grid).grid(row=GRID_ROWS, column=(3*GRID_COLS)//4, columnspan=GRID_COLS//4)
+        tk.Button(self.master, text='Update Click Value', command=self.update_click_value).grid(row=GRID_ROWS+2, column=GRID_COLS//2, columnspan=GRID_COLS//2)
+        tk.Button(self.master, text='Predict', command=self.update_predictions).grid(row=GRID_ROWS+2, column=GRID_COLS//4, columnspan=GRID_COLS//2)
 
     def create_widgets(self):
         for i in range(GRID_ROWS):
@@ -32,22 +45,28 @@ class GridEditor:
                 label.pos = (i, j)
                 self.label_grid[i][j] = label
 
+        # Info Widget
         self.info_label = tk.Label(self.master, text="")
         self.info_label.grid(row=GRID_ROWS+1, column=0, columnspan=GRID_COLS)
 
-        self.create_controls()
-
-    def create_controls(self):
-        tk.Button(self.master, text='Set All', command=self.set_click_value).grid(row=GRID_ROWS, column=0, columnspan=GRID_COLS//4)
-        tk.Button(self.master, text='Invert', command=self.invert_grid).grid(row=GRID_ROWS, column=GRID_COLS//4, columnspan=GRID_COLS//4)
-        tk.Button(self.master, text='Random', command=self.randomize_grid).grid(row=GRID_ROWS, column=(2*GRID_COLS)//4, columnspan=GRID_COLS//4)
-        tk.Button(self.master, text='Reset', command=self.reset_grid).grid(row=GRID_ROWS, column=(3*GRID_COLS)//4, columnspan=GRID_COLS//4)
-        
+        # Click Value Widget
         self.click_value_entry = tk.Entry(self.master, width=15)
         self.click_value_entry.grid(row=GRID_ROWS+2, column=0, columnspan=GRID_COLS//2)
         self.click_value_entry.insert(0, str(self.click_value))
-        tk.Button(self.master, text='Update Click Value', command=self.update_click_value).grid(row=GRID_ROWS+2, column=GRID_COLS//2, columnspan=GRID_COLS//2)
 
+        # Prediction Widgets
+        if self.models and self.prediction_callback:
+            self.model_labels = []
+            for i in range(len(self.models)):
+                self.model_labels.append(tk.Label(self.master, text=""))
+                self.model_labels[i].grid(row=0 + i, column=GRID_COLS, columnspan=GRID_COLS)
+
+    def bind_events(self):
+        self.master.bind('<Button-1>', self.on_press)
+        self.master.bind('<B1-Motion>', self.on_drag)
+        self.master.bind('<Motion>', self.update_info)
+
+    ### Functions
     def flip_color(self, label):
         i, j = label.pos
         # we want to create a brush effect to make it easier to paint
@@ -74,7 +93,6 @@ class GridEditor:
                     # Update the label color
                     self.label_grid[new_i][new_j].configure(bg=gray_to_hex(self.grid[new_i][new_j]))
 
-
     def on_press(self, event):
         widget = self.master.winfo_containing(event.x_root, event.y_root)
         if widget and hasattr(widget, 'pos'):
@@ -92,6 +110,15 @@ class GridEditor:
         if widget and isinstance(widget, tk.Label) and hasattr(widget, 'pos'):
             self.info_label.configure(text=f"Row: {widget.pos[0]}, Column: {widget.pos[1]}, Value: {self.grid[widget.pos[0]][widget.pos[1]]}")
 
+    def update_predictions(self):
+        self.models = self.prediction_callback(self.grid)
+        for i, (model_name, predictions) in enumerate(self.models.items()):
+            prediction_string = f"{model_name}: "
+            for digit, prediction in predictions.items():
+                term = "" if digit == list(predictions.keys())[-1] else ", "
+                prediction_string += f"{digit} ({prediction}){term}"
+            self.model_labels[i].configure(text=prediction_string)
+
     def set_click_value(self):
         for i in range(GRID_ROWS):
             for j in range(GRID_COLS):
@@ -103,7 +130,6 @@ class GridEditor:
             for j in range(GRID_COLS):
                 self.grid[i][j] = INITIAL_GRID_VALUE
                 self.label_grid[i][j].configure(bg=gray_to_hex(INITIAL_GRID_VALUE))
-
 
     def invert_grid(self):
         for i in range(GRID_ROWS):
@@ -131,19 +157,40 @@ class GridEditor:
         self.click_value_entry.delete(0, 'end')
         self.click_value_entry.insert(0, message)
 
-    def bind_events(self):
-        self.master.bind('<Button-1>', self.on_press)
-        self.master.bind('<B1-Motion>', self.on_drag)
-        self.master.bind('<Motion>', self.update_info)
+import random
+from collections import OrderedDict
 
-def draw_number(initial=None):
-    root = tk.Tk()
-    app = GridEditor(root, initial)
-    root.mainloop()
-    return app.grid
+def create_random_dict():
+    # Generate 9 random float values between 0 and 1
+    values = [random.random() for _ in range(9)]
+    
+    # Add the value 0 at the end to complete the list
+    values.append(0.0)
+    
+    # Calculate the sum of these random values
+    total = sum(values)
+    
+    # Normalize the values so they sum to 1.0
+    values = [ round(v / total, 2) for v in values ]
+    
+    # Shuffle the digits 0-9
+    keys = list(range(10))
+    random.shuffle(keys)
+    
+    # Create the dictionary with keys and values
+    my_dict = dict(zip(keys, values))
+    
+    # Sort the dictionary by values in descending order
+    ordered_dict = OrderedDict(sorted(my_dict.items(), key=lambda item: item[1], reverse=True))
+    
+    return ordered_dict
 
 def main():
-    draw_number()
+    models = {
+        "model 1": create_random_dict(),
+        "model 2": create_random_dict()
+    }
+    GridEditor(models=models, prediction_callback=create_random_dict)
 
 if __name__ == "__main__":
     main()
