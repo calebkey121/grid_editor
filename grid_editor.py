@@ -1,10 +1,19 @@
 import tkinter as tk
 import random
+import keras
+import numpy
+
+# load images for display
+mnist = keras.datasets.mnist
+(train_images, train_labels), (test_images, test_labels) = mnist.load_data()
+images = train_images
+len_images = len(images)
 
 # Constants for grid dimensions and initial click value
 GRID_ROWS, GRID_COLS = 28, 28
 INITIAL_GRID_VALUE = 0 # Black
 INITIAL_CLICK_VALUE = 255  # White
+
 
 # Helper function to convert a grayscale value to a hex color string
 def gray_to_hex(gray_value):
@@ -30,12 +39,35 @@ class GridEditor:
 
     ### INITIAL SETUP ###
     def create_controls(self):
-        tk.Button(self.master, text='Set All', command=self.set_click_value).grid(row=GRID_ROWS, column=0, columnspan=GRID_COLS//4)
-        tk.Button(self.master, text='Invert', command=self.invert_grid).grid(row=GRID_ROWS, column=GRID_COLS//4, columnspan=GRID_COLS//4)
-        tk.Button(self.master, text='Random', command=self.randomize_grid).grid(row=GRID_ROWS, column=(2*GRID_COLS)//4, columnspan=GRID_COLS//4)
-        tk.Button(self.master, text='Reset', command=self.reset_grid).grid(row=GRID_ROWS, column=(3*GRID_COLS)//4, columnspan=GRID_COLS//4)
-        tk.Button(self.master, text='Update Click Value', command=self.update_click_value).grid(row=GRID_ROWS+2, column=GRID_COLS//2, columnspan=GRID_COLS//2)
-        tk.Button(self.master, text='Predict', command=self.update_predictions).grid(row=GRID_ROWS+2, column=GRID_COLS//4, columnspan=GRID_COLS//2)
+        # Row 1
+        buttons_row_1 = {
+            "Set All": self.set_random_example,
+            "Invert": self.invert_grid,
+            "Randomize": self.randomize_grid,
+            "Reset": self.reset_grid,
+            "Predict": self.update_predictions
+        }
+        num_buttons_row_1 = len(buttons_row_1)
+        for i, (name, fun) in enumerate(buttons_row_1.items()):
+            tk.Button(self.master, text=name, command=fun).grid(row=GRID_ROWS, column=((i * GRID_COLS) // num_buttons_row_1), columnspan=GRID_COLS // num_buttons_row_1)
+
+        # Row 2
+        buttons_row_2 = {
+            "Update Click Value": self.update_click_value,
+            "Random Example": self.set_random_example,
+        }
+        num_buttons_row_2 = len(buttons_row_2) + 1 # account for click value widget
+        for i, (name, fun) in enumerate(buttons_row_2.items()): # i + 1 to account for click value widget
+            tk.Button(self.master, text=name, command=fun).grid(row=GRID_ROWS + 1, column=(((i + 1) * GRID_COLS) // num_buttons_row_2), columnspan=GRID_COLS // num_buttons_row_2)
+
+        
+        #tk.Button(self.master, text='Random Example', command=self.set_random_example).grid(row=GRID_ROWS, column=0, columnspan=GRID_COLS//4)
+        #tk.Button(self.master, text='Set All', command=self.set_click_value).grid(row=GRID_ROWS, column=0, columnspan=GRID_COLS//4)
+        #tk.Button(self.master, text='Invert', command=self.invert_grid).grid(row=GRID_ROWS, column=GRID_COLS//4, columnspan=GRID_COLS//4)
+        #tk.Button(self.master, text='Random', command=self.randomize_grid).grid(row=GRID_ROWS, column=(2*GRID_COLS)//4, columnspan=GRID_COLS//4)
+        #tk.Button(self.master, text='Reset', command=self.reset_grid).grid(row=GRID_ROWS, column=(3*GRID_COLS)//4, columnspan=GRID_COLS//4)
+        #tk.Button(self.master, text='Predict', command=self.update_predictions).grid(row=GRID_ROWS+2, column=GRID_COLS//4, columnspan=GRID_COLS//2)
+        #tk.Button(self.master, text='Update Click Value', command=self.update_click_value).grid(row=GRID_ROWS+2, column=GRID_COLS//2, columnspan=GRID_COLS//2)
 
     def create_widgets(self):
         for i in range(GRID_ROWS):
@@ -47,11 +79,11 @@ class GridEditor:
 
         # Info Widget
         self.info_label = tk.Label(self.master, text="")
-        self.info_label.grid(row=GRID_ROWS+1, column=0, columnspan=GRID_COLS)
+        self.info_label.grid(row=GRID_ROWS+2, column=0, columnspan=GRID_COLS)
 
         # Click Value Widget
         self.click_value_entry = tk.Entry(self.master, width=15)
-        self.click_value_entry.grid(row=GRID_ROWS+2, column=0, columnspan=GRID_COLS//2)
+        self.click_value_entry.grid(row=GRID_ROWS+1, column=0, columnspan=GRID_COLS//2)
         self.click_value_entry.insert(0, str(self.click_value))
 
         # Prediction Widgets
@@ -67,6 +99,14 @@ class GridEditor:
         self.master.bind('<Motion>', self.update_info)
 
     ### Functions
+    def set_random_example(self):
+        image_idx = random.randint(0, len_images - 1)
+        image = images[image_idx]
+        for i in range(GRID_ROWS):
+            for j in range(GRID_COLS):
+                self.grid[i][j] = image[i][j]
+                self.label_grid[i][j].configure(bg=gray_to_hex(image[i][j]))
+
     def flip_color(self, label):
         i, j = label.pos
         # we want to create a brush effect to make it easier to paint
